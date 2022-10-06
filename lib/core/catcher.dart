@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:android_id/android_id.dart';
 import 'package:catcher/core/application_profile_manager.dart';
 import 'package:catcher/core/catcher_screenshot_manager.dart';
 import 'package:catcher/mode/report_mode_action_confirmed.dart';
@@ -202,11 +203,11 @@ class Catcher with ReportModeAction {
     }
 
     if (rootWidget != null) {
-      _runZonedGuarded(() {
+      _runAppWithPlatformDispatcher(() {
         runApp(rootWidget!);
       });
     } else if (runAppFunction != null) {
-      _runZonedGuarded(() {
+      _runAppWithPlatformDispatcher(() {
         runAppFunction!();
       });
     } else {
@@ -214,15 +215,23 @@ class Catcher with ReportModeAction {
     }
   }
 
-  void _runZonedGuarded(void Function() callback) {
-    runZonedGuarded<Future<void>>(() async {
-      if (ensureInitialized) {
-        WidgetsFlutterBinding.ensureInitialized();
-      }
-      callback();
-    }, (dynamic error, StackTrace stackTrace) {
+  void _runAppWithPlatformDispatcher(void Function() callback) {
+    PlatformDispatcher.instance.onError = (Object error, StackTrace stackTrace) {
       _reportError(error, stackTrace);
-    });
+      return true;
+    };
+    if (ensureInitialized) {
+      WidgetsFlutterBinding.ensureInitialized();
+    }
+    callback();
+    // runZonedGuarded<Future<void>>(() async {
+    //   if (ensureInitialized) {
+    //     WidgetsFlutterBinding.ensureInitialized();
+    //   }
+    //   callback();
+    // }, (dynamic error, StackTrace stackTrace) {
+    //   _reportError(error, stackTrace);
+    // });
   }
 
   void _configureLogger() {
@@ -242,6 +251,7 @@ class Catcher with ReportModeAction {
 
   void _loadDeviceInfo() {
     final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    final AndroidId androidId = AndroidId();
     if (ApplicationProfileManager.isWeb()) {
       deviceInfo.webBrowserInfo.then((webBrowserInfo) {
         _loadWebParameters(webBrowserInfo);
@@ -264,8 +274,10 @@ class Catcher with ReportModeAction {
       });
     } else if (ApplicationProfileManager.isAndroid()) {
       deviceInfo.androidInfo.then((androidInfo) {
-        _loadAndroidParameters(androidInfo);
-        _removeExcludedParameters();
+        androidId.getId().then((androidId) {
+          _loadAndroidParameters(androidInfo, androidId);
+          _removeExcludedParameters();
+        });
       });
     } else if (ApplicationProfileManager.isIos()) {
       deviceInfo.iosInfo.then((iosInfo) {
@@ -322,8 +334,7 @@ class Catcher with ReportModeAction {
     try {
       _deviceParameters["computerName"] = windowsDeviceInfo.computerName;
       _deviceParameters["numberOfCores"] = windowsDeviceInfo.numberOfCores;
-      _deviceParameters["systemMemoryInMegabytes"] =
-          windowsDeviceInfo.systemMemoryInMegabytes;
+      _deviceParameters["systemMemoryInMegabytes"] = windowsDeviceInfo.systemMemoryInMegabytes;
     } catch (exception) {
       _logger.warning("Load Windows parameters failed: $exception");
     }
@@ -337,8 +348,7 @@ class Catcher with ReportModeAction {
       _deviceParameters["appVersion"] = webBrowserInfo.appVersion;
       _deviceParameters["browserName"] = webBrowserInfo.browserName.toString();
       _deviceParameters["deviceMemory"] = webBrowserInfo.deviceMemory;
-      _deviceParameters["hardwareConcurrency"] =
-          webBrowserInfo.hardwareConcurrency;
+      _deviceParameters["hardwareConcurrency"] = webBrowserInfo.hardwareConcurrency;
       _deviceParameters["languages"] = webBrowserInfo.languages;
       _deviceParameters["maxTouchPoints"] = webBrowserInfo.maxTouchPoints;
       _deviceParameters["platform"] = webBrowserInfo.platform;
@@ -352,10 +362,10 @@ class Catcher with ReportModeAction {
     }
   }
 
-  void _loadAndroidParameters(AndroidDeviceInfo androidDeviceInfo) {
+  void _loadAndroidParameters(AndroidDeviceInfo androidDeviceInfo, String? androidId) {
     try {
       _deviceParameters["id"] = androidDeviceInfo.id;
-      // TODO(*): _deviceParameters["androidId"] = androidDeviceInfo.androidId;
+      _deviceParameters["androidId"] = androidId;
       _deviceParameters["board"] = androidDeviceInfo.board;
       _deviceParameters["bootloader"] = androidDeviceInfo.bootloader;
       _deviceParameters["brand"] = androidDeviceInfo.brand;
@@ -364,8 +374,7 @@ class Catcher with ReportModeAction {
       _deviceParameters["fingerprint"] = androidDeviceInfo.fingerprint;
       _deviceParameters["hardware"] = androidDeviceInfo.hardware;
       _deviceParameters["host"] = androidDeviceInfo.host;
-      _deviceParameters["isPhysicalDevice"] =
-          androidDeviceInfo.isPhysicalDevice;
+      _deviceParameters["isPhysicalDevice"] = androidDeviceInfo.isPhysicalDevice;
       _deviceParameters["manufacturer"] = androidDeviceInfo.manufacturer;
       _deviceParameters["model"] = androidDeviceInfo.model;
       _deviceParameters["product"] = androidDeviceInfo.product;
@@ -373,14 +382,11 @@ class Catcher with ReportModeAction {
       _deviceParameters["type"] = androidDeviceInfo.type;
       _deviceParameters["versionBaseOs"] = androidDeviceInfo.version.baseOS;
       _deviceParameters["versionCodename"] = androidDeviceInfo.version.codename;
-      _deviceParameters["versionIncremental"] =
-          androidDeviceInfo.version.incremental;
-      _deviceParameters["versionPreviewSdk"] =
-          androidDeviceInfo.version.previewSdkInt;
+      _deviceParameters["versionIncremental"] = androidDeviceInfo.version.incremental;
+      _deviceParameters["versionPreviewSdk"] = androidDeviceInfo.version.previewSdkInt;
       _deviceParameters["versionRelease"] = androidDeviceInfo.version.release;
       _deviceParameters["versionSdk"] = androidDeviceInfo.version.sdkInt;
-      _deviceParameters["versionSecurityPatch"] =
-          androidDeviceInfo.version.securityPatch;
+      _deviceParameters["versionSecurityPatch"] = androidDeviceInfo.version.securityPatch;
     } catch (exception) {
       _logger.warning("Load Android parameters failed: $exception");
     }
@@ -405,8 +411,7 @@ class Catcher with ReportModeAction {
   }
 
   void _loadApplicationInfo() {
-    _applicationParameters["environment"] =
-        describeEnum(ApplicationProfileManager.getApplicationProfile());
+    _applicationParameters["environment"] = describeEnum(ApplicationProfileManager.getApplicationProfile());
 
     PackageInfo.fromPlatform().then((packageInfo) {
       _applicationParameters["version"] = packageInfo.version;
@@ -427,16 +432,14 @@ class Catcher with ReportModeAction {
       }
       if (_currentConfig.localizationOptions.isNotEmpty == true) {
         for (final options in _currentConfig.localizationOptions) {
-          if (options.languageCode.toLowerCase() ==
-              locale.languageCode.toLowerCase()) {
+          if (options.languageCode.toLowerCase() == locale.languageCode.toLowerCase()) {
             _localizationOptions = options;
           }
         }
       }
     }
 
-    _localizationOptions ??=
-        _getDefaultLocalizationOptionsForLanguage(locale.languageCode);
+    _localizationOptions ??= _getDefaultLocalizationOptionsForLanguage(locale.languageCode);
     _setupLocalizationsOptionsInReportMode();
     _setupLocalizationsOptionsInReportsHandler();
   }
@@ -501,8 +504,7 @@ class Catcher with ReportModeAction {
     dynamic stackTrace, {
     FlutterErrorDetails? errorDetails,
   }) async {
-    if (errorDetails?.silent == true &&
-        _currentConfig.handleSilentError == false) {
+    if (errorDetails?.silent == true && _currentConfig.handleSilentError == false) {
       _logger.info(
         "Report error skipped for error: $error. HandleSilentError is false.",
       );
@@ -540,16 +542,14 @@ class Catcher with ReportModeAction {
       return;
     }
 
-    if (_currentConfig.filterFunction != null &&
-        _currentConfig.filterFunction!(report) == false) {
+    if (_currentConfig.filterFunction != null && _currentConfig.filterFunction!(report) == false) {
       _logger.fine(
         "Error: '$error' has been filtered from Catcher logs. Report will be skipped.",
       );
       return;
     }
     _cachedReports.add(report);
-    ReportMode? reportMode =
-        _getReportModeFromExplicitExceptionReportModeMap(error);
+    ReportMode? reportMode = _getReportModeFromExplicitExceptionReportModeMap(error);
     if (reportMode != null) {
       _logger.info("Using explicit report mode for error");
     } else {
@@ -614,8 +614,7 @@ class Catcher with ReportModeAction {
 
   @override
   void onActionConfirmed(Report report) {
-    final ReportHandler? reportHandler =
-        _getReportHandlerFromExplicitExceptionHandlerMap(report.error);
+    final ReportHandler? reportHandler = _getReportHandlerFromExplicitExceptionHandlerMap(report.error);
     if (reportHandler != null) {
       _logger.info("Using explicit report handler");
       _handleReport(report, reportHandler);
@@ -642,9 +641,7 @@ class Catcher with ReportModeAction {
       return;
     }
 
-    reportHandler
-        .handle(report, _getContext())
-        .catchError((dynamic handlerError) {
+    reportHandler.handle(report, _getContext()).catchError((dynamic handlerError) {
       _logger.warning(
         "Error occurred in ${reportHandler.toString()}: ${handlerError.toString()}",
       );
@@ -679,9 +676,7 @@ class Catcher with ReportModeAction {
 
   @override
   void onActionRejected(Report report) {
-    _currentConfig.handlers
-        .where((handler) => handler.shouldHandleWhenRejected())
-        .forEach((handler) {
+    _currentConfig.handlers.where((handler) => handler.shouldHandleWhenRejected()).forEach((handler) {
       _handleReport(report, handler);
     });
 
@@ -710,9 +705,8 @@ class Catcher with ReportModeAction {
   static void addDefaultErrorWidget({
     bool showStacktrace = true,
     String title = "An application error has occurred",
-    String description =
-        "There was unexpected situation in application. Application has been "
-            "able to recover from error state.",
+    String description = "There was unexpected situation in application. Application has been "
+        "able to recover from error state.",
     double maxWidthForSmallMode = 150,
   }) {
     ErrorWidget.builder = (FlutterErrorDetails details) {
@@ -755,8 +749,7 @@ class Catcher with ReportModeAction {
     final int occurenceTimeout = _currentConfig.reportOccurrenceTimeout;
     final DateTime nowDateTime = DateTime.now();
     _reportsOcurrenceMap.removeWhere((key, value) {
-      final DateTime occurenceWithTimeout =
-          key.add(Duration(milliseconds: occurenceTimeout));
+      final DateTime occurenceWithTimeout = key.add(Duration(milliseconds: occurenceTimeout));
       return nowDateTime.isAfter(occurenceWithTimeout);
     });
   }
