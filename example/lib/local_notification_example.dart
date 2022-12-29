@@ -47,9 +47,7 @@ class _MyAppState extends State<MyApp> {
 class ChildWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-        child: TextButton(
-            child: Text("Generate error"), onPressed: () => generateError()));
+    return Container(child: TextButton(child: Text("Generate error"), onPressed: () => generateError()));
   }
 
   void generateError() async {
@@ -67,10 +65,7 @@ class NotificationReportMode extends ReportMode {
   final String icon;
 
   NotificationReportMode(
-      {this.channelId = "Catcher",
-      this.channelName = "Catcher",
-      this.channelDescription = "Catcher default channel",
-      this.icon = "@mipmap/ic_launcher"});
+      {this.channelId = "Catcher", this.channelName = "Catcher", this.channelDescription = "Catcher default channel", this.icon = "@mipmap/ic_launcher"});
 
   @override
   setReportModeAction(ReportModeAction reportModeAction) {
@@ -90,8 +85,7 @@ class NotificationReportMode extends ReportMode {
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
     );
-    _flutterLocalNotificationsPlugin.initialize(initializationSettings,
-        onDidReceiveNotificationResponse: onSelectedNotification);
+    _flutterLocalNotificationsPlugin.initialize(initializationSettings, onDidReceiveNotificationResponse: onSelectedNotification);
   }
 
   @override
@@ -100,31 +94,21 @@ class NotificationReportMode extends ReportMode {
     _sendNotification();
   }
 
-  Future onSelectedNotification(NotificationResponse response) {
+  Future onSelectedNotification(NotificationResponse details) {
     onActionConfirmed(_lastReport);
     return Future<int>.value(0);
   }
 
   void _sendNotification() async {
-    var androidPlatformChannelSpecifics = new AndroidNotificationDetails(
-        channelId, channelName,
-        channelDescription: channelDescription,
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority);
+    var androidPlatformChannelSpecifics = new AndroidNotificationDetails(channelId, channelName,
+        channelDescription: channelDescription, importance: Importance.defaultImportance, priority: Priority.defaultPriority);
     var iOSPlatformChannelSpecifics = new DarwinNotificationDetails();
-    var platformChannelSpecifics = new NotificationDetails(
-        android: androidPlatformChannelSpecifics,
-        iOS: iOSPlatformChannelSpecifics);
+    var platformChannelSpecifics = new NotificationDetails(android: androidPlatformChannelSpecifics, iOS: iOSPlatformChannelSpecifics);
 
-    await _flutterLocalNotificationsPlugin.show(
-        0,
-        localizationOptions.notificationReportModeTitle,
-        localizationOptions.notificationReportModeContent,
-        platformChannelSpecifics,
-        payload: "");
+    await _flutterLocalNotificationsPlugin
+        .show(0, localizationOptions.notificationReportModeTitle, localizationOptions.notificationReportModeContent, platformChannelSpecifics, payload: "");
   }
 
   @override
-  List<PlatformType> getSupportedPlatforms() =>
-      [PlatformType.android, PlatformType.iOS];
+  List<PlatformType> getSupportedPlatforms() => [PlatformType.android, PlatformType.iOS];
 }
